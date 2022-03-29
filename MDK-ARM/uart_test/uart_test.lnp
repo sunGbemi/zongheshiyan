@@ -3,7 +3,6 @@
 "uart_test\esp8266.o"
 "uart_test\oled.o"
 "uart_test\24l01.o"
-"uart_test\dht11.o"
 "uart_test\main.o"
 "uart_test\gpio.o"
 "uart_test\adc.o"

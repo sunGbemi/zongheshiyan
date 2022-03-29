@@ -36,11 +36,10 @@
 #include "oled.h"
 #include "bmp.h"
 #include "24l01.h"
-#include "DHT11.h"
 #include "string.h"
 
 extern uint8_t RX_buff;
-uint8_t nrf24l01_buff[36];
+uint8_t nrf24l01_buff[50];
 uint16_t LED_Show=0;
 char Voltage_Show[50];
 char Tempture_Show[30];
@@ -65,6 +64,14 @@ int8_t  Temperature_S1;                            //温度 可能为负数。如果想得到
 float TemValue;
 float RH_Value;
 
+#define Trig_H  	HAL_GPIO_WritePin(GPIOE,GPIO_PIN_0,GPIO_PIN_SET );   
+#define Trig_L  	HAL_GPIO_WritePin(GPIOE,GPIO_PIN_0,GPIO_PIN_RESET );   
+uint16_t count;
+uint16_t distance;
+uint16_t time;
+uint16_t i;
+void getDistance(void);
+void user_delaynus_tim(uint32_t nus);
 
 /* USER CODE END Includes */
 
@@ -135,9 +142,10 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM8_Init();
   MX_I2C2_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   HAL_UART_Receive_IT(&huart2, &RX_buff, 1);
-  LCD_Init();
+//  LCD_Init();
 //  OLED_Init();
 //  OLED_ColorTurn(0);//0正常显示，1 反色显示
 //  OLED_DisplayTurn(0);//0正常显示 1 屏幕翻转显示
@@ -147,17 +155,13 @@ int main(void)
 //  esp8266_Init();
   NRF24L01_Init();
 	
-//	while(DHT11_Init())
-//	{
-//		HAL_Delay(1000);
-//	}
   while(NRF24L01_Check()==1)
   {
 //      LCD_ShowString(60,40,200,200,16,"NRF24L01_ERROR");
   }
   
-//  NRF24L01_TX_Mode();
-	NRF24L01_RX_Mode();
+  NRF24L01_TX_Mode();
+//	NRF24L01_RX_Mode();
   
 //  while(esp8266_check_cmd("CONNECT")==0)
 //  {
@@ -165,7 +169,7 @@ int main(void)
 //      LCD_ShowString(60,80,200,200,16,"8086");
 //  }
 	
-//	HAL_I2C_Master_Transmit(&hi2c2,0x44<<1,SHT3X_Modecommand_Buffer,2,0x10);  //第一步，发送periodic mode commands，传感器周期性的进行温湿度转换
+	HAL_I2C_Master_Transmit(&hi2c2,0x44<<1,SHT3X_Modecommand_Buffer,2,0x10);  //第一步，发送periodic mode commands，传感器周期性的进行温湿度转换
 	
   /* USER CODE END 2 */
 
@@ -173,26 +177,24 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-//		DHT11_Read_Data(&temperature,&humidity,&temp,&humi);
-//		rx_buf[0]=temperature;
-//		rx_buf[1]=humidity;
-//		sprintf(TShow,"tmp:%d",rx_buf[0]);
-//		sprintf(HShow,"hum:%d",rx_buf[1]);
-//		
+
 		
 		/*  发送部分的数据处理 */
-//		HAL_I2C_Master_Transmit(&hi2c2,0x44<<1,SHT3X_Fetchcommand_Bbuffer,2,0x10); //第二步，随时读取传感器的数据       
-//    HAL_I2C_Master_Receive(&hi2c2,(0x44<<1)+1,SHT3X_Data_Buffer,6,0x10); 
-//		
-//		Temperature_S1=(((SHT3X_Data_Buffer[0]<<8)+SHT3X_Data_Buffer[1])*175)/65535-45; //得到摄氏度温度
-//		Humidity_S1=(((SHT3X_Data_Buffer[3]<<8)+SHT3X_Data_Buffer[4])*100)/65535;  //可以得到相对湿度
-//		
-//		TemValue=(float)(((SHT3X_Data_Buffer[0]<<8)+SHT3X_Data_Buffer[1])*175)/65535-45; //得到摄氏度温度
-//		RH_Value=(float)(((SHT3X_Data_Buffer[3]<<8)+SHT3X_Data_Buffer[4])*100)/65535;  //可以得到相对湿度
-//		
-//		sprintf(Show,"temp:%.2f  RH:%.2f\r\n",TemValue,RH_Value);
-//		
-//		HAL_UART_Transmit(&huart1,(uint8_t*)Show,strlen(Show),0xffff);
+		HAL_I2C_Master_Transmit(&hi2c2,0x44<<1,SHT3X_Fetchcommand_Bbuffer,2,0x10); //第二步，随时读取传感器的数据       
+    HAL_I2C_Master_Receive(&hi2c2,(0x44<<1)+1,SHT3X_Data_Buffer,6,0x10); 
+		
+		Temperature_S1=(((SHT3X_Data_Buffer[0]<<8)+SHT3X_Data_Buffer[1])*175)/65535-45; //得到摄氏度温度
+		Humidity_S1=(((SHT3X_Data_Buffer[3]<<8)+SHT3X_Data_Buffer[4])*100)/65535;  //可以得到相对湿度
+		
+		TemValue=(float)(((SHT3X_Data_Buffer[0]<<8)+SHT3X_Data_Buffer[1])*175)/65535-45; //得到摄氏度温度
+		RH_Value=(float)(((SHT3X_Data_Buffer[3]<<8)+SHT3X_Data_Buffer[4])*100)/65535;  //可以得到相对湿度		
+		
+//		changdu=Senor_Using();
+		getDistance();
+		
+		sprintf(Show,"temp:%.2f  RH:%.2f    dist:%dcm\r\n",TemValue,RH_Value,distance);
+		
+		HAL_UART_Transmit(&huart1,(uint8_t*)Show,strlen(Show),0xffff);
 		/*  发送部分的数据处理 */
 		
 //    if(NRF24L01_RxPacket(nrf24l01_buff)==0)
@@ -202,26 +204,31 @@ int main(void)
 
 		if(HAL_GPIO_ReadPin(GPIOE,GPIO_PIN_5)==0)
 		{
-//			uint8_t test2=NRF24L01_TxPacket((uint8_t *)Show);
+			uint8_t test2=NRF24L01_TxPacket((uint8_t *)Show);
 		  if(NRF24L01_RxPacket(nrf24l01_buff)==0)
 			{
-					uint8_t dataone[10];
-					uint8_t datatwo[10];
-					uint8_t datathree[10];
-					for(uint8_t i = 0;i<10;i++){
-						dataone[i]=nrf24l01_buff[i];
-						datatwo[i]=nrf24l01_buff[i+12];
-						datathree[i]=nrf24l01_buff[i+24];
-					}
-					
-					LCD_ShowString(40,100,200,200,16,dataone);
-					LCD_ShowString(40,120,200,200,16,datatwo);
-					LCD_ShowString(40,140,200,200,16,datathree);
+				/*  接受部分的数据显示 */
+//					uint8_t dataone[10];
+//					uint8_t datatwo[8];
+//					uint8_t datathree[16];
+//					for(uint8_t i = 0;i<10;i++){
+//						dataone[i]=nrf24l01_buff[i];
+//					}
+//					for(uint8_t i = 0;i<8;i++){
+//						datatwo[i]=nrf24l01_buff[i+12];
+//					}
+//					for(uint8_t i = 0;i<16;i++){
+//						datathree[i]=nrf24l01_buff[i+24];
+//					}
+//					LCD_ShowString(40,100,200,200,16,dataone);
+//					LCD_ShowString(40,120,200,200,16,datatwo);
+//					LCD_ShowString(40,140,200,200,16,datathree);
+				/*  接受部分的数据显示 */
 			}
 		}
 		else
 		{
-
+			
 		}
 		
 //    esp8266_send_cmd("AT+CIPSEND=0,4\r\n","OK",100);
@@ -310,6 +317,39 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 		
 	}
 }
+
+void getDistance(void)
+{
+	Trig_H ;
+	user_delaynus_tim(12);
+	Trig_L ;
+	HAL_TIM_Base_Start(&htim2);
+	while(HAL_GPIO_ReadPin (GPIOA ,GPIO_PIN_15) != GPIO_PIN_SET);
+	__HAL_TIM_SET_COUNTER(&htim2,0);
+	while(HAL_GPIO_ReadPin (GPIOA ,GPIO_PIN_15) == GPIO_PIN_SET);
+	count = __HAL_TIM_GET_COUNTER(&htim2);
+  HAL_TIM_Base_Stop(&htim2);
+	distance = (uint16_t )count*0.017;
+}
+
+/* USER CODE BEGIN 4 */
+void user_delaynus_tim(uint32_t nus)
+{
+
+ uint16_t  differ = 0xffff-nus-5;
+ //设置定时器2的技术初始值
+  __HAL_TIM_SET_COUNTER(&htim2,differ);
+  //开启定时器
+  HAL_TIM_Base_Start(&htim2);
+
+  while( differ<0xffff-5)
+ {
+  differ = __HAL_TIM_GET_COUNTER(&htim2);
+ };
+ //关闭定时器
+  HAL_TIM_Base_Stop(&htim2);
+}
+
 
 /* USER CODE END 4 */
 
