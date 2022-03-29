@@ -63,6 +63,7 @@ uint8_t Humidity_S1;                               //Êª¶È ÕıÊı   Èç¹ûÏëµÃµ½Ğ¡Êıµ
 int8_t  Temperature_S1;                            //ÎÂ¶È ¿ÉÄÜÎª¸ºÊı¡£Èç¹ûÏëµÃµ½Ğ¡Êıµãºó¼¸Î»¼ûºóÃæµÄ·ÖÎö
 float TemValue;
 float RH_Value;
+void getTempAndRH(void);
 
 #define Trig_H  	HAL_GPIO_WritePin(GPIOE,GPIO_PIN_0,GPIO_PIN_SET );   
 #define Trig_L  	HAL_GPIO_WritePin(GPIOE,GPIO_PIN_0,GPIO_PIN_RESET );   
@@ -180,19 +181,11 @@ int main(void)
 
 		
 		/*  ·¢ËÍ²¿·ÖµÄÊı¾İ´¦Àí */
-		HAL_I2C_Master_Transmit(&hi2c2,0x44<<1,SHT3X_Fetchcommand_Bbuffer,2,0x10); //µÚ¶ş²½£¬ËæÊ±¶ÁÈ¡´«¸ĞÆ÷µÄÊı¾İ       
-    HAL_I2C_Master_Receive(&hi2c2,(0x44<<1)+1,SHT3X_Data_Buffer,6,0x10); 
+		getTempAndRH();
 		
-		Temperature_S1=(((SHT3X_Data_Buffer[0]<<8)+SHT3X_Data_Buffer[1])*175)/65535-45; //µÃµ½ÉãÊÏ¶ÈÎÂ¶È
-		Humidity_S1=(((SHT3X_Data_Buffer[3]<<8)+SHT3X_Data_Buffer[4])*100)/65535;  //¿ÉÒÔµÃµ½Ïà¶ÔÊª¶È
-		
-		TemValue=(float)(((SHT3X_Data_Buffer[0]<<8)+SHT3X_Data_Buffer[1])*175)/65535-45; //µÃµ½ÉãÊÏ¶ÈÎÂ¶È
-		RH_Value=(float)(((SHT3X_Data_Buffer[3]<<8)+SHT3X_Data_Buffer[4])*100)/65535;  //¿ÉÒÔµÃµ½Ïà¶ÔÊª¶È		
-		
-//		changdu=Senor_Using();
 		getDistance();
 		
-		sprintf(Show,"temp:%.2f  RH:%.2f    dist:%dcm\r\n",TemValue,RH_Value,distance);
+		sprintf(Show,"temp:%.2f  RH:%.2f    dist:%d\r\n",TemValue,RH_Value,distance);
 		
 		HAL_UART_Transmit(&huart1,(uint8_t*)Show,strlen(Show),0xffff);
 		/*  ·¢ËÍ²¿·ÖµÄÊı¾İ´¦Àí */
@@ -210,19 +203,21 @@ int main(void)
 				/*  ½ÓÊÜ²¿·ÖµÄÊı¾İÏÔÊ¾ */
 //					uint8_t dataone[10];
 //					uint8_t datatwo[8];
-//					uint8_t datathree[16];
+//					uint8_t datathree[12];
 //					for(uint8_t i = 0;i<10;i++){
 //						dataone[i]=nrf24l01_buff[i];
 //					}
 //					for(uint8_t i = 0;i<8;i++){
 //						datatwo[i]=nrf24l01_buff[i+12];
 //					}
-//					for(uint8_t i = 0;i<16;i++){
+//					for(uint8_t i = 0;i<12;i++){
 //						datathree[i]=nrf24l01_buff[i+24];
 //					}
-//					LCD_ShowString(40,100,200,200,16,dataone);
-//					LCD_ShowString(40,120,200,200,16,datatwo);
-//					LCD_ShowString(40,140,200,200,16,datathree);
+//					LCD_ShowString(60,100,200,200,16,dataone);
+//					LCD_ShowString(60,120,200,200,16,datatwo);
+//					LCD_Fill(60,140,160,160,WHITE);
+//					LCD_ShowString(60,140,200,200,16,datathree);
+//					LCD_ShowString(130,140,200,200,16,"CM");
 				/*  ½ÓÊÜ²¿·ÖµÄÊı¾İÏÔÊ¾ */
 			}
 		}
@@ -316,6 +311,18 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 		sprintf((char*)Tempture_Show,"Tempture:%.4f",Tempture);
 		
 	}
+}
+
+void getTempAndRH(void)
+{
+		HAL_I2C_Master_Transmit(&hi2c2,0x44<<1,SHT3X_Fetchcommand_Bbuffer,2,0x10); //µÚ¶ş²½£¬ËæÊ±¶ÁÈ¡´«¸ĞÆ÷µÄÊı¾İ       
+    HAL_I2C_Master_Receive(&hi2c2,(0x44<<1)+1,SHT3X_Data_Buffer,6,0x10); 
+		
+		Temperature_S1=(((SHT3X_Data_Buffer[0]<<8)+SHT3X_Data_Buffer[1])*175)/65535-45; //µÃµ½ÉãÊÏ¶ÈÎÂ¶È
+		Humidity_S1=(((SHT3X_Data_Buffer[3]<<8)+SHT3X_Data_Buffer[4])*100)/65535;  //¿ÉÒÔµÃµ½Ïà¶ÔÊª¶È
+		
+		TemValue=(float)(((SHT3X_Data_Buffer[0]<<8)+SHT3X_Data_Buffer[1])*175)/65535-45; //µÃµ½ÉãÊÏ¶ÈÎÂ¶È
+		RH_Value=(float)(((SHT3X_Data_Buffer[3]<<8)+SHT3X_Data_Buffer[4])*100)/65535;  //¿ÉÒÔµÃµ½Ïà¶ÔÊª¶È		
 }
 
 void getDistance(void)
