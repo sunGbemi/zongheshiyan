@@ -37,6 +37,7 @@
 #include "bmp.h"
 #include "24l01.h"
 #include "string.h"
+#include "NRF905.h"
 
 extern uint8_t RX_buff;
 uint8_t nrf24l01_buff[50];
@@ -74,6 +75,8 @@ uint16_t i;
 void getDistance(void);
 void user_delaynus_tim(uint32_t nus);
 
+void nrf905MyInit(void);
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -104,7 +107,26 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+	
+	
+NRF905_hw_t NRF905_hw;
+NRF905_t NRF905;
 
+int master;
+int ret;
+
+char buffer[64];
+char nrf905_payload_buffer[NRF905_MAX_PAYLOAD + 1];
+
+int message;
+int message_length;
+
+uint32_t my_address;
+uint32_t receiver_address;
+
+#define ADDRESS_MASTER 0x25D34478
+#define ADDRESS_SLAVE  0x6DA0C59B
+	
 /* USER CODE END 0 */
 
 /**
@@ -144,33 +166,28 @@ int main(void)
   MX_TIM8_Init();
   MX_I2C2_Init();
   MX_TIM2_Init();
+  MX_SPI3_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
   HAL_UART_Receive_IT(&huart2, &RX_buff, 1);
-//  LCD_Init();
-//  OLED_Init();
-//  OLED_ColorTurn(0);//0正常显示，1 反色显示
-//  OLED_DisplayTurn(0);//0正常显示 1 屏幕翻转显示
-//  OLED_Refresh();
-//  OLED_ShowPicture(0,0,128,8,BMP1);
-  HAL_Delay(1000);
-//  esp8266_Init();
-  NRF24L01_Init();
 	
-  while(NRF24L01_Check()==1)
-  {
-//      LCD_ShowString(60,40,200,200,16,"NRF24L01_ERROR");
-  }
+  LCD_Init();
+	
+  HAL_Delay(1000);
+
+//  NRF24L01_Init();
+	
+//  while(NRF24L01_Check()==1){} 
   
-  NRF24L01_TX_Mode();
+//  NRF24L01_TX_Mode();
 //	NRF24L01_RX_Mode();
   
-//  while(esp8266_check_cmd("CONNECT")==0)
-//  {
-//      LCD_ShowString(60,60,200,200,16,"192.168.123.101");
-//      LCD_ShowString(60,80,200,200,16,"8086");
-//  }
 	
-	HAL_I2C_Master_Transmit(&hi2c2,0x44<<1,SHT3X_Modecommand_Buffer,2,0x10);  //第一步，发送periodic mode commands，传感器周期性的进行温湿度转换
+//	HAL_I2C_Master_Transmit(&hi2c2,0x44<<1,SHT3X_Modecommand_Buffer,2,0x10);  //第一步，发送periodic mode commands，传感器周期性的进行温湿度转换
+	
+	
+	nrf905MyInit();
+
 	
   /* USER CODE END 2 */
 
@@ -181,13 +198,13 @@ int main(void)
 
 		
 		/*  发送部分的数据处理 */
-		getTempAndRH();
-		
-		getDistance();
-		
-		sprintf(Show,"temp:%.2f  RH:%.2f    dist:%d\r\n",TemValue,RH_Value,distance);
-		
-		HAL_UART_Transmit(&huart1,(uint8_t*)Show,strlen(Show),0xffff);
+//		getTempAndRH();
+//		
+//		getDistance();
+//		
+//		sprintf(Show,"temp:%.2f  RH:%.2f    dist:%d\r\n",TemValue,RH_Value,distance);
+//		
+//		HAL_UART_Transmit(&huart1,(uint8_t*)Show,strlen(Show),0xffff);		//这项是串口显示测试
 		/*  发送部分的数据处理 */
 		
 //    if(NRF24L01_RxPacket(nrf24l01_buff)==0)
@@ -195,12 +212,13 @@ int main(void)
 //        LCD_ShowString(60,100,200,200,16,nrf24l01_buff);
 //    }
 
-		if(HAL_GPIO_ReadPin(GPIOE,GPIO_PIN_5)==0)
-		{
-			uint8_t test2=NRF24L01_TxPacket((uint8_t *)Show);
-		  if(NRF24L01_RxPacket(nrf24l01_buff)==0)
-			{
-				/*  接受部分的数据显示 */
+		
+//		if(HAL_GPIO_ReadPin(GPIOE,GPIO_PIN_5)==0)
+//		{
+//			uint8_t test2=NRF24L01_TxPacket((uint8_t *)Show);
+//		  if(NRF24L01_RxPacket(nrf24l01_buff)==0)
+//			{
+//				/*  接受部分的数据显示24l01 */
 //					uint8_t dataone[10];
 //					uint8_t datatwo[8];
 //					uint8_t datathree[12];
@@ -218,16 +236,58 @@ int main(void)
 //					LCD_Fill(60,140,160,160,WHITE);
 //					LCD_ShowString(60,140,200,200,16,datathree);
 //					LCD_ShowString(130,140,200,200,16,"CM");
-				/*  接受部分的数据显示 */
+//				/*  接受部分的数据显示24l01 */
+//			}
+//		}
+		
+	/*  nrf905发送部分  */
+	
+//		int ret = NRF905_tx(&NRF905, my_address, Show, strlen(Show),		//这里用Show代替了nrf905_payload_buffer
+//				NRF905_NEXTMODE_TX);
+	
+	/*  nrf905发送部分  */
+
+
+	/*  接受部分的数据显示nrf905 */
+		
+		NRF905_rx(&NRF905);
+		
+		uint32_t wait = rand() % 21 + 20;
+		uint8_t response_ok = 0;
+		for (int i = 0; i < wait; ++i) {
+			uint8_t state_DR = NRF905_data_ready(&NRF905);
+			uint8_t state_AM = NRF905_address_matched(&NRF905);
+		
+			if (state_DR && state_AM) {
+				NRF905_read(&NRF905, nrf905_payload_buffer, NRF905_MAX_PAYLOAD);
+				nrf905_payload_buffer[NRF905_MAX_PAYLOAD] = 0x00;
+				response_ok=1;
+				break;
 			}
 		}
-		else
+		if(response_ok==0)
 		{
-			
+			LCD_ShowString(60,180,200,200,16,"No response\r\n");
 		}
 		
-//    esp8266_send_cmd("AT+CIPSEND=0,4\r\n","OK",100);
-//    esp8266_send_data("TEST",0,0);
+		uint8_t dataone[10];
+		uint8_t datatwo[8];
+		uint8_t datathree[12];
+		for(uint8_t i = 0;i<10;i++){
+			dataone[i]=nrf905_payload_buffer[i];
+		}
+		for(uint8_t i = 0;i<8;i++){
+			datatwo[i]=nrf905_payload_buffer[i+12];
+		}
+		for(uint8_t i = 0;i<12;i++){
+			datathree[i]=nrf905_payload_buffer[i+24];
+		}
+		LCD_ShowString(60,100,200,200,16,dataone);
+		LCD_ShowString(60,120,200,200,16,datatwo);
+		LCD_Fill(60,140,160,160,WHITE);
+		LCD_ShowString(60,140,200,200,16,datathree);
+		LCD_ShowString(130,140,200,200,16,"CM");
+	/*  接受部分的数据显示nrf905 */
 
     HAL_Delay(1000);
     /* USER CODE END WHILE */
@@ -339,7 +399,7 @@ void getDistance(void)
 	distance = (uint16_t )count*0.017;
 }
 
-/* USER CODE BEGIN 4 */
+
 void user_delaynus_tim(uint32_t nus)
 {
 
@@ -357,6 +417,47 @@ void user_delaynus_tim(uint32_t nus)
   HAL_TIM_Base_Stop(&htim2);
 }
 
+
+void nrf905MyInit(void)
+{
+	uint32_t uid = 0x00;
+	for (uint8_t i = 0; i < 3; ++i) {
+		uid += *(uint32_t*) (UID_BASE + i * 4);
+	}
+	srand(uid);
+
+	NRF905_hw.gpio[NRF905_HW_GPIO_TXEN].pin = TXEN_Pin;
+	NRF905_hw.gpio[NRF905_HW_GPIO_TXEN].port = TXEN_GPIO_Port;
+	NRF905_hw.gpio[NRF905_HW_GPIO_TRX_EN].pin = TRX_CE_Pin;
+	NRF905_hw.gpio[NRF905_HW_GPIO_TRX_EN].port = TRX_CE_GPIO_Port;
+	NRF905_hw.gpio[NRF905_HW_GPIO_PWR].pin = PWR_Pin;
+	NRF905_hw.gpio[NRF905_HW_GPIO_PWR].port = PWR_GPIO_Port;
+
+	NRF905_hw.gpio[NRF905_HW_GPIO_CD].pin = CD_Pin;
+	NRF905_hw.gpio[NRF905_HW_GPIO_CD].port = CD_GPIO_Port;
+	NRF905_hw.gpio[NRF905_HW_GPIO_AM].pin = 0;
+	NRF905_hw.gpio[NRF905_HW_GPIO_AM].port = NULL;
+	NRF905_hw.gpio[NRF905_HW_GPIO_DR].pin = 0;
+	NRF905_hw.gpio[NRF905_HW_GPIO_DR].port = NULL;
+
+	NRF905_hw.gpio[NRF905_HW_GPIO_CS].pin = SPI_CS_Pin;
+	NRF905_hw.gpio[NRF905_HW_GPIO_CS].port = SPI_CS_GPIO_Port;
+
+	NRF905_hw.tim = &htim1;
+	NRF905_hw.spi = &hspi3;
+	
+	master = HAL_GPIO_ReadPin(MODE_GPIO_Port, MODE_Pin);
+	if (master == 1) {
+		my_address = ADDRESS_MASTER;
+		receiver_address = ADDRESS_SLAVE;
+	} else {
+		my_address = ADDRESS_SLAVE;
+		receiver_address = ADDRESS_MASTER;
+	}
+	
+	NRF905_init(&NRF905, &NRF905_hw);
+	NRF905_set_listen_address(&NRF905, receiver_address);	
+}
 
 /* USER CODE END 4 */
 
