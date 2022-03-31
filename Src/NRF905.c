@@ -318,6 +318,10 @@ uint8_t NRF905_tx(NRF905_t *dev, uint32_t sendTo, void *data, uint8_t len,
 		NRF905_HW_STANDBY_ENTER(dev->hw);
 	}
 	// else NRF905_NEXTMODE_TX
+	else if (nextMode == NRF905_NEXTMODE_TX) {
+		NRF905_hw_delay_us(dev->hw, 14);
+		NRF905_HW_MODE_TX(dev->hw);
+	}
 
 	return 1;
 }

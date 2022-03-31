@@ -183,10 +183,12 @@ int main(void)
 //	NRF24L01_RX_Mode();
   
 	
-//	HAL_I2C_Master_Transmit(&hi2c2,0x44<<1,SHT3X_Modecommand_Buffer,2,0x10);  //第一步，发送periodic mode commands，传感器周期性的进行温湿度转换
+	HAL_I2C_Master_Transmit(&hi2c2,0x44<<1,SHT3X_Modecommand_Buffer,2,0x10);  //第一步，发送periodic mode commands，传感器周期性的进行温湿度转换
 	
 	
 	nrf905MyInit();
+	
+//	NRF905_set_auto_retransmit(&NRF905,NRF905_AUTO_RETRAN_ENABLE);			//自动发送
 
 	
   /* USER CODE END 2 */
@@ -243,7 +245,7 @@ int main(void)
 	/*  nrf905发送部分  */
 	
 //		int ret = NRF905_tx(&NRF905, my_address, Show, strlen(Show),		//这里用Show代替了nrf905_payload_buffer
-//				NRF905_NEXTMODE_TX);
+//				NRF905_NEXTMODE_RX);
 	
 	/*  nrf905发送部分  */
 
@@ -254,20 +256,21 @@ int main(void)
 		
 		uint32_t wait = rand() % 21 + 20;
 		uint8_t response_ok = 0;
-		for (int i = 0; i < wait; ++i) {
-			uint8_t state_DR = NRF905_data_ready(&NRF905);
-			uint8_t state_AM = NRF905_address_matched(&NRF905);
-		
-			if (state_DR && state_AM) {
-				NRF905_read(&NRF905, nrf905_payload_buffer, NRF905_MAX_PAYLOAD);
-				nrf905_payload_buffer[NRF905_MAX_PAYLOAD] = 0x00;
-				response_ok=1;
-				break;
-			}
+		uint8_t state_DR = NRF905_data_ready(&NRF905);
+		uint8_t state_AM = NRF905_address_matched(&NRF905);
+	
+		if (state_DR && state_AM) {
+			NRF905_read(&NRF905, nrf905_payload_buffer, NRF905_MAX_PAYLOAD);
+			nrf905_payload_buffer[NRF905_MAX_PAYLOAD] = 0x00;
+			response_ok=1;
 		}
 		if(response_ok==0)
 		{
-			LCD_ShowString(60,180,200,200,16,"No response\r\n");
+//			LCD_ShowString(60,180,200,200,16,"No response\r\n");
+		}
+		else{
+			LCD_Fill(60,180,200,200,WHITE);
+			response_ok=0;
 		}
 		
 		uint8_t dataone[10];
